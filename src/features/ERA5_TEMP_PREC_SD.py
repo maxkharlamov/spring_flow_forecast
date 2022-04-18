@@ -15,6 +15,8 @@ from tqdm import tqdm
 from multiprocessing import Pool
 import multiprocessing as mp
 
+from joblib import Parallel, delayed
+
 import warnings
 
 
@@ -192,8 +194,12 @@ def temp_prec_stat(df_cut):
         df_stat['subzero_temp_Cv'] = [df_winter[df_winter['mean_temp'] < 0]['mean_temp'].std() / df_winter[df_winter['mean_temp'] < 0]['mean_temp'].mean()]
         df_stat['thaw_temp_Cv'] = [df_winter[df_winter['mean_temp'] > 0]['mean_temp'].std() / df_winter[df_winter['mean_temp'] > 0]['mean_temp'].mean()]
         
-        df_stat['SnowTP_Cv'] = [df_winter[df_winter['mean_temp'] < 0]['prec'].std() / df_winter[df_winter['mean_temp'] < 0]['prec'].mean()]
-        df_stat['ThawTP_Cv'] = [df_winter[df_winter['mean_temp'] > 0]['prec'].std() / df_winter[df_winter['mean_temp'] > 0]['prec'].mean()]
+        try:
+            df_stat['SnowTP_Cv'] = [df_winter[df_winter['mean_temp'] < 0]['prec'].std() / df_winter[df_winter['mean_temp'] < 0]['prec'].mean()]
+            df_stat['ThawTP_Cv'] = [df_winter[df_winter['mean_temp'] > 0]['prec'].std() / df_winter[df_winter['mean_temp'] > 0]['prec'].mean()]
+        except:
+            df_stat['SnowTP_Cv'] = [np.nan]
+            df_stat['ThawTP_Cv'] = [np.nan]
     else:
         df_stat['thaw_days_Cv'] = [np.nan]   
         df_stat['winter_temp_Cv'] = [np.nan]
@@ -288,54 +294,59 @@ def sd_stat_groupby(df_pre):
     
     return df_gr
 
-if __name__ == '__main__':
-# =============================================================================
-#     Определение характеристик зимнего периода по осадкам и температурам ERA5
-#     Необходимо задать исходные файлы с данными prec и temp и место сохранения результата
-# =============================================================================
 
-    path1 = 'F:/RNF/data_ready_to_use/ERA5/2m_temperature/'                    
-    path2 = 'F:/RNF/data_ready_to_use/ERA5/total_precipitation/'
-    path3 = 'F:/RNF/data_ready_to_use/ERA5/snow_depth/'
+def era5_temp_prec_sd_culc(nc_temp, nc_prec, nc_sd, save_path, sample=False):
     
-    input_file1 = '2m_temperature_full.nc'                         
-    input_file2 = 'total_precipitation_full.nc'                    
-    input_file3 = 'snow_depth_full.nc'                     
-    
-    save_path = 'Temp_Prec_SD_full4.nc'                                        
-    
-    nc_temp = xr.open_dataset(path1 + input_file1)        
+                                          
+    print('era5_temp_prec_sd_culc...')
+    '''
+    nc_temp = xr.open_dataset(temp_path)        
     nc_temp = nc_temp['t2m'] - 273.15
     
-    nc_pre = xr.open_dataset(path2 + input_file2)        
+    nc_pre = xr.open_dataset(prec_path)        
     nc_pre = nc_pre['tp']*1000
     
-    nc_sd = xr.open_dataset(path3 + input_file3)        
+    nc_sd = xr.open_dataset(sd_path)        
     nc_sd = nc_sd['sd'] * 1000
-    
+    '''
     nc_sd.values = xr.where(nc_sd.values > 0.05, nc_sd.values,  0.0)
     
     xarray_list = []
-     
-    for i in tqdm(range(len(nc_temp ['longitude'][:])), desc = 'make list'):
-        for j in range(len(nc_temp ['latitude'][:])):
-             
-            df_pre = nc_temp[:, j, i].to_dataframe()
-            df_pre = pd.concat([df_pre, nc_pre[:, j, i].to_dataframe()['tp']], axis = 1)
-            df_pre = pd.concat([df_pre, nc_sd[:, j, i].to_dataframe()['sd']], axis = 1)
-            
-            xarray_list.append(df_pre)
-            
     
-    with mp.Pool(mp.cpu_count()) as p:
- 
-        result = list(tqdm(p.imap(sd_stat_groupby, xarray_list[:], chunksize = 1), desc = 'imap', total = len(xarray_list)))
-         
-        p.close()
-        p.join()
+    if sample:
+        for i in tqdm(range(len(nc_temp ['longitude'][:5])), desc = 'Making list...'):
+            for j in range(len(nc_temp ['latitude'][:])):
+                 
+                df_pre = nc_temp[:, j, i].to_dataframe()
+                df_pre = pd.concat([df_pre, nc_prec[:, j, i].to_dataframe()['tp']], axis = 1)
+                df_pre = pd.concat([df_pre, nc_sd[:, j, i].to_dataframe()['sd']], axis = 1)
+                df_pre = df_pre.dropna()
+                
+                xarray_list.append(df_pre)
+    else:
+        for i in tqdm(range(len(nc_temp ['longitude'][:])), desc = 'Making list...'):
+            for j in range(len(nc_temp ['latitude'][:])):
+                 
+                df_pre = nc_temp[:, j, i].to_dataframe()
+                df_pre = pd.concat([df_pre, nc_prec[:, j, i].to_dataframe()['tp']], axis = 1)
+                df_pre = pd.concat([df_pre, nc_sd[:, j, i].to_dataframe()['sd']], axis = 1)
+                df_pre = df_pre.dropna()
+                
+                xarray_list.append(df_pre)
     
- 
+    result = Parallel(n_jobs=mp.cpu_count())(delayed(sd_stat_groupby)(i) 
+                                             for i in tqdm(xarray_list[:], 
+                                                           desc="Calculating..."))
+
     df_full = pd.concat(result)       
      
     xxx = df_full.to_xarray()
-    xxx.to_netcdf(save_path)         
+    xxx.to_netcdf(save_path) 
+    
+    print()
+'''    
+era5_sd_prec_temp_culc(sd_path='D:/RNF/data_ready_to_use/ERA5/snow_depth/snow_depth_full.nc',
+                       prec_path='D:/RNF/data_ready_to_use/ERA5/total_precipitation/total_precipitation_full.nc',
+                       temp_path='D:/RNF/data_ready_to_use/ERA5/2m_temperature/2m_temperature_full.nc',
+                       save_path='sd_prec_temp.nc')
+'''

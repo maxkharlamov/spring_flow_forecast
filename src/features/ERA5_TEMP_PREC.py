@@ -15,8 +15,11 @@ from tqdm import tqdm
 from multiprocessing import Pool
 import multiprocessing as mp
 
+from joblib import Parallel, delayed
+
 
 def temp_prec_stat(df_cut):
+    
     def last_day_stats(df_cut, backward_days, forward_days, label):
         
         last_nday_data = df_cut[max_i - pd.to_timedelta(str(backward_days) + ' days'):max_i + pd.to_timedelta(str(forward_days) + ' days')]
@@ -25,7 +28,7 @@ def temp_prec_stat(df_cut):
         df_stat['temp_sum_' + label] = [last_nday_data['mean_temp'].sum()]
         df_stat['frozen_temp_' + label]  = [last_nday_data[last_nday_data['mean_temp'] < 0]['mean_temp'].sum()]
         df_stat['thaw_temp_sum_' + label] = [last_nday_data[last_nday_data['mean_temp'] > 0]['mean_temp'].sum()]
-        df_stat['range_temp_' + label] = [last_nday_data['mean_temp'].max() - last_nday_data['mean_temp'].main()]
+        df_stat['range_temp_' + label] = [last_nday_data['mean_temp'].max() - last_nday_data['mean_temp'].min()]
         df_stat['TP_sum_' + label] = [last_nday_data['prec'].sum()]
         df_stat['SnowTP_sum_' + label] = [last_nday_data[last_nday_data['mean_temp'] < 0]['prec'].sum()]
         df_stat['ThawTP_sum_' + label] = [last_nday_data[last_nday_data['mean_temp'] > 0]['prec'].sum()]
@@ -33,7 +36,6 @@ def temp_prec_stat(df_cut):
         df_stat['temp_Cv_' + label] = [last_nday_data['mean_temp'].std() / last_nday_data['mean_temp'].mean()]
         df_stat['temp_std_' + label] = [last_nday_data['mean_temp'].std()]
         return df_stat
-    
     
     df_cut = df_cut.rename(columns = {'t2m':'mean_temp', 'tp':'prec', 'sd' : 'snowdepth'})
     df_stat = pd.DataFrame()
@@ -61,10 +63,15 @@ def temp_prec_stat(df_cut):
     df_uzp = df_winter[min_i_uzp:]  
     
     df_stat['frozen_days_uzp'] = [len(df_uzp[df_uzp['mean_temp']<0])]
-    df_stat['frozen_days_1.01'] = [len(df_winter[df_winter['mean_temp']<0][str(df_winter.index.year[-1]) + '-01-01' : max_i])]
-    df_stat['frozen_days_15.01'] = [len(df_winter[df_winter['mean_temp']<0][str(df_winter.index.year[-1]) + '-01-15' : max_i])]
-    df_stat['frozen_days_1.02'] = [len(df_winter[df_winter['mean_temp']<0][str(df_winter.index.year[-1]) + '-02-01' : max_i])]
-    
+    try:
+        df_stat['frozen_days_1.01'] = [len(df_winter[df_winter['mean_temp']<0][str(df_winter.index.year[-1]) + '-01-01' : max_i])]
+        df_stat['frozen_days_15.01'] = [len(df_winter[df_winter['mean_temp']<0][str(df_winter.index.year[-1]) + '-01-15' : max_i])]
+        df_stat['frozen_days_1.02'] = [len(df_winter[df_winter['mean_temp']<0][str(df_winter.index.year[-1]) + '-02-01' : max_i])]
+    except:
+        df_stat['frozen_days_1.01'] = [0]
+        df_stat['frozen_days_15.01'] = [0]
+        df_stat['frozen_days_1.02'] = [0]
+        
     df_winter_1 = df_winter[df_winter['mean_temp'] < 0]
     
     df_ind = pd.DataFrame()
@@ -92,15 +99,20 @@ def temp_prec_stat(df_cut):
     df_stat['thaw_temp_mean_per_thaw'] = df_ind['thaw_temp_mean_per_thaw'].mean()       
     df_stat['ThawTP_sum_per_thaw'] = df_ind['ThawTP_sum_per_thaw'].mean()             
 
-    if  len(df_winter) != 0:
+    if  len(df_winter) > 0:
     
         df_stat['thaw_days_Cv'] = [df_ind['dif'].std() / df_ind['dif'].mean()]
         df_stat['winter_temp_Cv'] = [df_winter['mean_temp'].std() / df_winter['mean_temp'].mean()]
         df_stat['subzero_temp_Cv'] = [df_winter[df_winter['mean_temp'] < 0]['mean_temp'].std() / df_winter[df_winter['mean_temp'] < 0]['mean_temp'].mean()]
         df_stat['thaw_temp_Cv'] = [df_winter[df_winter['mean_temp'] > 0]['mean_temp'].std() / df_winter[df_winter['mean_temp'] > 0]['mean_temp'].mean()]
         
-        df_stat['SnowTP_Cv'] = [df_winter[df_winter['mean_temp'] < 0]['prec'].std() / df_winter[df_winter['mean_temp'] < 0]['prec'].mean()]
-        df_stat['ThawTP_Cv'] = [df_winter[df_winter['mean_temp'] > 0]['prec'].std() / df_winter[df_winter['mean_temp'] > 0]['prec'].mean()]
+        try:
+            df_stat['SnowTP_Cv'] = [df_winter[df_winter['mean_temp'] < 0]['prec'].std() / df_winter[df_winter['mean_temp'] < 0]['prec'].mean()]
+            df_stat['ThawTP_Cv'] = [df_winter[df_winter['mean_temp'] > 0]['prec'].std() / df_winter[df_winter['mean_temp'] > 0]['prec'].mean()]
+        except:
+            df_stat['SnowTP_Cv'] = [np.nan]
+            df_stat['ThawTP_Cv'] = [np.nan]
+        
     else:
         df_stat['thaw_days_Cv'] = [np.nan]        
         df_stat['winter_temp_Cv'] = [np.nan]
@@ -119,10 +131,10 @@ def temp_prec_stat(df_cut):
     df_stat = last_day_stats(df_cut, 10, 0, 'last_10d')
     
     len_ex = len(df_cut[df_cut.index.month.isin([11,12,1,2,3])]['mean_temp'].dropna())
-        
+    '''    
     if len_ex/151 < 0.9:            
         df_stat = df_stat * np.nan
-        
+    '''   
     return df_stat
     
 def sd_stat_groupby(df_pre):
@@ -146,48 +158,43 @@ def sd_stat_groupby(df_pre):
     
     return df_gr
 
-if __name__ == '__main__':
-# =============================================================================
-#     Определение характеристик зимнего периода по осадкам и температурам ERA5
-#     Необходимо задать исходные файлы с данными prec и temp и место сохранения результата
-# =============================================================================
+def era5_temp_prec_culc(nc_temp, nc_prec, save_path, sample=False):
 
-    
-    path1 = 'I:/RNF/data_ready_to_use/ERA5/2m_temperature/'                    
-    path2 = 'I:/RNF/data_ready_to_use/ERA5/total_precipitation/'
-    
-    input_file1 = '2m_temperature_full.nc'                         
-    input_file2 = 'total_precipitation_full.nc'                    
-    
-    save_path = 'Temp_Prec_full.nc'                                        
-    
-    nc_temp = xr.open_dataset(path1 + input_file1)        
-    nc_temp = nc_temp['t2m'] - 273.15 
-    
-    nc_pre = xr.open_dataset(path2 + input_file2)        
-    nc_pre = nc_pre['tp']*1000 
+    print('era5_temp_prec_culc...')
     
     
-    xarray_list = []
-     
-    for i in tqdm(range(len(nc_temp ['longitude'][:])), desc = 'make list'):
-        for j in range(len(nc_temp ['latitude'][:])):
-             
-            df_pre = nc_temp[:, j, i].to_dataframe()
-            df_pre = pd.concat([df_pre, nc_pre[:, j, i].to_dataframe()['tp']], axis = 1)
-             
-            xarray_list.append(df_pre)
+    if sample==True:
+        xarray_list = []
+        for i in tqdm(range(len(nc_temp ['longitude'][:5])), desc = 'Making list...'):
+            for j in range(len(nc_temp ['latitude'][:])):
+                 
+                df_pre = nc_temp[:, j, i].to_dataframe()
+                df_pre = pd.concat([df_pre, nc_prec[:, j, i].to_dataframe()['tp']], axis = 1)
+                df_pre = df_pre.dropna()
+                
+                xarray_list.append(df_pre)
+    else:
+        xarray_list = []
+        for i in tqdm(range(len(nc_temp ['longitude'][:])), desc = 'Making list...'):
+            for j in range(len(nc_temp ['latitude'][:])):
+                 
+                df_pre = nc_temp[:, j, i].to_dataframe()
+                df_pre = pd.concat([df_pre, nc_prec[:, j, i].to_dataframe()['tp']], axis = 1)
+                df_pre = df_pre.dropna()
+                
+                xarray_list.append(df_pre)
             
-
-    with mp.Pool(mp.cpu_count()) as p:
- 
-        result = list(tqdm(p.imap(sd_stat_groupby, xarray_list[:], chunksize = 1), desc = 'imap', total = len(xarray_list)))
-         
-        p.close()
-        p.join()
     
- 
+    result = Parallel(n_jobs=mp.cpu_count(), batch_size=1)(delayed(sd_stat_groupby)(point) 
+                                 for point in tqdm(xarray_list, 
+                                                   desc="Calculating..."))
+    
     df_full = pd.concat(result)       
      
     xxx = df_full.to_xarray()
-    xxx.to_netcdf(save_path)         
+    xxx.to_netcdf(save_path)  
+    print()    
+
+
+    
+    

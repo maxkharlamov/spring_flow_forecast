@@ -15,13 +15,22 @@ from tqdm import tqdm
 from multiprocessing import Pool
 import multiprocessing as mp
 
-def xarray_to_df(nc):
+from joblib import Parallel, delayed
+
+def xarray_to_df(nc, sample=False):
     
     xarray_list = []
-    for i in tqdm(range(len(nc['longitude'][:])), desc = 'make list'):
-        for j in range(len(nc['latitude'][:])):
-            df_pre = nc[:, j, i].to_dataframe()
-            xarray_list.append(df_pre)
+    if sample==True:
+        for i in tqdm(range(len(nc['longitude'][:5])), desc = 'make list'):
+            for j in range(len(nc['latitude'][:])):
+                df_pre = nc[:, j, i].to_dataframe()
+                xarray_list.append(df_pre)
+    else:
+        for i in tqdm(range(len(nc['longitude'][:])), desc = 'make list'):
+            for j in range(len(nc['latitude'][:])):
+                df_pre = nc[:, j, i].to_dataframe()
+                xarray_list.append(df_pre)
+        
             
     return xarray_list
 
@@ -108,7 +117,23 @@ def sd_stat_groupby(df_pre):
     return df_gr
 
 
-
+def era5_sd_culc(nc_sd, save_path, sample=False):
+    nc_sd.values = xr.where(nc_sd.values > 0.05, nc_sd.values,  0.0)
+    
+    
+    xarray_list = xarray_to_df(nc_sd, sample=sample)
+    
+    result = Parallel(n_jobs=mp.cpu_count(), batch_size=1)(delayed(sd_stat_groupby)(point) 
+                                 for point in tqdm(xarray_list, 
+                                                   desc="Calculating..."))
+    
+    df_full = pd.concat(result)       
+    
+    xxx = df_full.to_xarray()
+    xxx.to_netcdf(save_path)         
+    
+    
+'''   
 if __name__ == '__main__':
 # =============================================================================
 #     Определение характеристик снежного покрова по данным ERA5
@@ -138,4 +163,4 @@ if __name__ == '__main__':
     xxx = df_full.to_xarray()
     xxx.to_netcdf(save_path)         
        
-
+'''

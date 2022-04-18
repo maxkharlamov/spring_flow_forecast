@@ -15,6 +15,8 @@ from tqdm import tqdm
 from multiprocessing import Pool
 import multiprocessing as mp
 
+from joblib import Parallel, delayed
+
 
 def fr_depth_stat(df_cut):
 # =============================================================================
@@ -60,46 +62,40 @@ def sd_stat_groupby(df_pre):
     
     return df_gr
 
-def make_list(list_ij):
-    nc_sd = xr.open_dataset('D:/RNF/data_ready_to_use/ERA5/' + 'fr_depth_EU_full.nc' )        
-    nc_sd = nc_sd['fr_depth'][:, list_ij[0], list_ij[1]].to_dataframe() 
+def make_list(nc_st, list_ij):
+    '''
+    nc_sd = xr.open_dataset('D:/RNF/data_ready_to_use/ERA5/' + 'fr_depth_EU_full.nc' )     
+    '''
+    nc_sd = nc_st[:, list_ij[0], list_ij[1]].to_dataframe() 
     return nc_sd
 
 
-if __name__ == '__main__':
-# =============================================================================
-#     Определение характеристик снежного покрова по данным ERA5
-#     Необходимо задать исходный файл с параметром snow_depth и место сохранения результата
-# =============================================================================
-    path = 'D:/RNF/data_ready_to_use/ERA5/'
-    input_file = 'fr_depth_EU_full.nc'                               
-    save_path = 'output/fr_depth_stat_full.nc'                                        
-    
-    nc_sd = xr.open_dataset(path + input_file)        
-    nc_sd = nc_sd['fr_depth'] 
-    
+def era5_soil_temp_culc(nc_st, save_path, sample=False):
     
     xarray_list_mp = []
-    for i in tqdm(range(nc_sd.shape[1]), desc = 'make list'):         
-        for j in range(nc_sd.shape[2]):
-            xarray_list_mp.append([i, j])
-            
-    with mp.Pool(16) as p:
-        
-        xarray_list = list(tqdm(p.imap(make_list, xarray_list_mp[:], chunksize = 1), desc = 'imap_prepare_data', total = len(xarray_list_mp)))
-        p.close()
-        p.join()
     
-    with mp.Pool(mp.cpu_count()) as p:
+    if sample==True:
+        for i in tqdm(range(nc_st.shape[1]), desc = 'make list'):         
+            for j in range(5):
+                xarray_list_mp.append([i, j])
+    else:
+        for i in tqdm(range(nc_st.shape[1]), desc = 'make list'):         
+            for j in range(nc_st.shape[2]):
+                xarray_list_mp.append([i, j])
+                
+            
+    xarray_list = Parallel(n_jobs=mp.cpu_count(), batch_size=1)(delayed(make_list)(nc_st, point) 
+                                 for point in tqdm(xarray_list_mp, 
+                                                   desc="Making list..."))
+    
 
-        result = list(tqdm(p.imap(sd_stat_groupby, xarray_list[:], chunksize = 1), desc = 'fr_depth_stat_culc', total = len(xarray_list)))
-        
-        p.close()
-        p.join()
+    result = Parallel(n_jobs=mp.cpu_count(), batch_size=1)(delayed(sd_stat_groupby)(point) 
+                                 for point in tqdm(xarray_list, 
+                                                   desc="Calculating..."))
 
     df_full = pd.concat(result)       
     
     xxx = df_full.to_xarray()
-    xxx.to_netcdf(save_path)         
-       
+    xxx.to_netcdf(save_path)       
+    
 
