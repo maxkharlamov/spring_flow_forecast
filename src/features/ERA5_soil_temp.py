@@ -63,9 +63,6 @@ def sd_stat_groupby(df_pre):
     return df_gr
 
 def make_list(nc_st, list_ij):
-    '''
-    nc_sd = xr.open_dataset('D:/RNF/data_ready_to_use/ERA5/' + 'fr_depth_EU_full.nc' )     
-    '''
     nc_sd = nc_st[:, list_ij[0], list_ij[1]].to_dataframe() 
     return nc_sd
 
@@ -98,4 +95,3 @@ def era5_soil_temp_culc(nc_st, save_path, sample=False):
     xxx = df_full.to_xarray()
     xxx.to_netcdf(save_path)       
     
-

@@ -299,16 +299,7 @@ def era5_temp_prec_sd_culc(nc_temp, nc_prec, nc_sd, save_path, sample=False):
     
                                           
     print('era5_temp_prec_sd_culc...')
-    '''
-    nc_temp = xr.open_dataset(temp_path)        
-    nc_temp = nc_temp['t2m'] - 273.15
     
-    nc_pre = xr.open_dataset(prec_path)        
-    nc_pre = nc_pre['tp']*1000
-    
-    nc_sd = xr.open_dataset(sd_path)        
-    nc_sd = nc_sd['sd'] * 1000
-    '''
     nc_sd.values = xr.where(nc_sd.values > 0.05, nc_sd.values,  0.0)
     
     xarray_list = []
@@ -344,9 +335,3 @@ def era5_temp_prec_sd_culc(nc_temp, nc_prec, nc_sd, save_path, sample=False):
     xxx.to_netcdf(save_path) 
     
     print()
-'''    
-era5_sd_prec_temp_culc(sd_path='D:/RNF/data_ready_to_use/ERA5/snow_depth/snow_depth_full.nc',
-                       prec_path='D:/RNF/data_ready_to_use/ERA5/total_precipitation/total_precipitation_full.nc',
-                       temp_path='D:/RNF/data_ready_to_use/ERA5/2m_temperature/2m_temperature_full.nc',
-                       save_path='sd_prec_temp.nc')
-'''

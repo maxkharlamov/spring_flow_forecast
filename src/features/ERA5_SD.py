@@ -131,36 +131,3 @@ def era5_sd_culc(nc_sd, save_path, sample=False):
     
     xxx = df_full.to_xarray()
     xxx.to_netcdf(save_path)         
-    
-    
-'''   
-if __name__ == '__main__':
-# =============================================================================
-#     Определение характеристик снежного покрова по данным ERA5
-#     Необходимо задать исходный файл с параметром snow_depth и место сохранения результата
-# =============================================================================
-    path = 'input/'
-    input_file = 'snow_depth_full.nc'                               
-    
-    save_path = 'output/SD_features.nc'                                        
-    
-    nc_sd = xr.open_dataset(path + input_file)        
-    nc_sd = nc_sd['sd'] * 1000
-    
-    nc_sd.values = xr.where(nc_sd.values > 0.05, nc_sd.values,  0.0)
-    
-    xarray_list = xarray_to_df(nc_sd)
-    
-    with mp.Pool(mp.cpu_count()) as p:
-
-        result = list(tqdm(p.imap(sd_stat_groupby, xarray_list[:], chunksize = 1), desc = 'imap', total = len(xarray_list)))
-        
-        p.close()
-        p.join()
-
-    df_full = pd.concat(result)       
-    
-    xxx = df_full.to_xarray()
-    xxx.to_netcdf(save_path)         
-       
-'''
