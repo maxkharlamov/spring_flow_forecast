@@ -24,8 +24,8 @@ def objective_ltgbm(trial):
 
     param = {#"device":'gpu',
              "metric" : 'RMSE',
-             "n_estimators": trial.suggest_int("n_estimators", 100, 3000, 100),
-             "num_leaves": trial.suggest_int("num_leaves", 1, 100),
+             "n_estimators": trial.suggest_int("n_estimators", 100, 4000, 100),
+             "num_leaves": trial.suggest_int("num_leaves", 1, 300),
              'random_state' : 0,
              }
 
@@ -111,7 +111,7 @@ def objective_xgb(trial):
 
 data_path='data/input/'
 
-df_all = pd.read_csv('dataset1.csv', index_col='Unnamed: 0')
+df_all = pd.read_csv('dataset_w_shape_features_geol_clim.csv', index_col='Unnamed: 0')
 df_all = df_all.reset_index().drop(['index'], axis=1)
 
 df_all = df_all.fillna(0)
@@ -209,7 +209,7 @@ def shap_graphs(model, X, output_prefix = ''):
     plt.tight_layout()
     plt.savefig('bar_' + output_prefix + '.png')
     
-shap_graphs(model = lgb_1, X=X, output_prefix = 'lgbm_meteo')
+shap_graphs(model = lgb_1, X=X, output_prefix = 'lgbm_meteo_shapes_geol_clim')
 
 #???
 '''
@@ -222,14 +222,6 @@ plt.title('LightGBM Features (avg over folds)')
 plt.tight_layout()
 plt.show()
 '''
-
-
-# meteo, Vanya, test (2016, 2017)
-# xgb 26.62
-# lgb 27.33
-# cat 26.74
-# composition 26.325 
-#R2=0.8678
 
 # meteo, test (2014, 2015, 2016, 2017)
 # xgb 26.7
@@ -250,4 +242,34 @@ plt.show()
 #R2=0.831
 #mse       rmse      mae
 #1098.169685  33.138643  4.87322
+
+# meteo+shape, test (2014, 2015, 2016, 2017), without station and year
+# lgb 25.626
+#R2=0.8968
+#    mse       rmse       mae
+#717.972122  26.795002  4.402685
+
+# meteo+shape+geol, test (2014, 2015, 2016, 2017), without station and year
+# lgb  25.46
+#R2=0.8906
+#    mse       rmse       mae
+#738.892194  27.182572  4.460894
+
+# meteo+shape+geol+clim, test (2014, 2015, 2016, 2017), without station and year
+# lgb  25.465
+#R2=0.9
+#    mse       rmse       mae
+#694.272717  26.349055  4.425478
+
+
+
+
+
+
+
+
+
+
+
+
 
