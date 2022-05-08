@@ -32,7 +32,7 @@ def sample_stat(sample):
     stat['mae'] = mean_absolute_error(sample['wpol'], sample['wpol_pred'])
     stat['NS'] = nse(sample['wpol_pred'].values, sample['wpol'].values)
     
-    aaa = (sample['wpol_pred'] - sample['wpol'])/sample['wpol'].mean() * 100
+    aaa = abs(sample['wpol_pred'] - sample['wpol'])/sample['wpol'].mean() * 100
     stat['delta, %'] = aaa.mean()
     
     return stat
@@ -48,28 +48,16 @@ def prepare(df, shape, rename = True):
 def importance_plot(shapes_new, feature, metric, folder, 
                     bins = [-0.8, -0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6, 0.8, 1]):
     
-
     cmap = 'rainbow'
     
     fig = plt.figure(figsize = (20, 15))
     
     ax = plt.axes(projection = ccrs.AlbersEqualArea(30,35))
-    #plt.axes(projection=ccrs.AlbersEqualArea(30, 35))
-    #ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
-    '''
-    shapes_new.plot(ax = ax, column = feature, cmap = cmap, scheme='user_defined', 
-                    #classification_kwds = {'bins' : bins}, #scheme='equal_interval', k = 10,
-                    markersize=100, edgecolor='black',
-                    zorder=2,
-                    legend=True, transform=ccrs.PlateCarree())
-    '''
     
     shapes_new.plot(ax = ax, column = feature, cmap = cmap, scheme='equal_interval',
                     k=10,
                     markersize=100, edgecolor='black', zorder=2,
                     legend=True, transform=ccrs.PlateCarree())
-    #ax.set_extent([20, 65, 45, 70], crs=ccrs.AlbersEqualArea(30,45))
-    
     
     ax.add_feature(cfeature.LAND)
     ax.add_feature(cfeature.OCEAN)
@@ -78,9 +66,6 @@ def importance_plot(shapes_new, feature, metric, folder,
     ax.add_feature(cfeature.RIVERS)
     ax.add_feature(cfeature.LAKES, alpha=0.5)
     
-    
-    
-    
     plt.title('prediction accuracy ' + metric, fontdict = {'fontsize': 20})
     
     directory = folder + '/'
@@ -88,10 +73,39 @@ def importance_plot(shapes_new, feature, metric, folder,
     
     fig.savefig(directory + 'prediction accuracy ' + metric + '.png')
     #plt.close('all')
-    
-data = pd.read_csv('loo_year1.csv')
-data = pd.read_csv('loo_station1.csv')
+
+def graphs_per_watershed(data, stat, cols, path_to_save):
+    stations = data['station'].unique()
+    for st in tqdm.tqdm(stations):
+        try:
+            plt.close('all')
+            sample = data[data['station'] == st]
+            statka = stat[stat['station'] == st]
+            
+            sample = sample.sort_values(['year'])
+            sample.index = sample['year']
+            if len(cols) == 1:
+                sample[cols[0]].plot()
+            else:
+                sample[cols].plot()
+            plt.title('station ' + str(int(st)) + ' (R2='+str(round(statka['R2'].values[0],2))+' RMSE='+str(round(statka['RMSE'].values[0],2))+' delta%='+str(round(statka['delta, %'].values[0],2))+')')
+            plt.grid()
+            plt.legend()
+            
+            if not os.path.exists(path_to_save):
+                os.makedirs(path_to_save)
+            plt.savefig(path_to_save + str(int(st)) + '.png')
+        except:
+            print('error in ', str(int(st)))
+
+loo_file = 'loo_year1.csv'
+loo_file = 'loo_station1.csv'
+
+data = pd.read_csv(loo_file)
+
 data = data.drop(['Unnamed: 0', 'index'], axis=1)
+data['RMSE'] = abs(data['wpol_pred'] - data['wpol'])
+data['abs_delta_proc'] = data['RMSE']/data['wpol'] * 100
 
 shapes = gpd.read_file('data/shapes/hpost_rf/hp_2623.shp')
 shapes.index = shapes['STATION']
@@ -106,24 +120,50 @@ shape_stat = gpd.GeoDataFrame(shape1,
 
 shape_stat = shape_stat[shape_stat['R2']<0.99]
 
-importance_plot(shape_stat, 'R2', 'R2', 'graphs_importance_loo_year', 
-                    bins = [0, 0.2, 0.4, 0.6, 0.8, 1])
+if loo_file == 'loo_station1.csv':
+    
+    importance_plot(shape_stat, 'R2', 'R2', 'loo_graphs/station_loo/graphs_importance_loo_station', 
+                        bins = [0, 0.2, 0.4, 0.6, 0.8, 1])
+    
+    importance_plot(shape_stat, 'NS', 'NS', 'loo_graphs/station_loo/graphs_importance_loo_station', 
+                        bins = [0, 0.2, 0.4, 0.6, 0.8, 1])
+    
+    importance_plot(shape_stat, 'delta, %', 'delta_proc', 'loo_graphs/station_loo/graphs_importance_loo_station', 
+                        bins = [-0.2, 0, 0.2, 0.4, 0.6])
+    
+    importance_plot(shape_stat, 'RMSE', 'RMSE', 'loo_graphs/station_loo/graphs_importance_loo_station', 
+                        bins = [-0.2, 0, 0.2, 0.4, 0.6])
+    
+    importance_plot(shape_stat, 'mae', 'mae', 'loo_graphs/station_loo/graphs_importance_loo_station', 
+                        bins = [-0.2, 0, 0.2, 0.4, 0.6])
+    
+    graphs_per_watershed(data, stat, ['wpol', 'wpol_pred'], 'loo_graphs/station_loo/graphs_predict_station_loo/')
+    graphs_per_watershed(data, stat, ['RMSE'], 'loo_graphs/station_loo/graphs_predict_station_loo_rmse/')
+    graphs_per_watershed(data, stat, ['abs_delta_proc'], 'loo_graphs/station_loo/graphs_predict_station_loo_abs_delta/')
+    
+    stat.to_excel('stat_loo_watershed.xlsx')
 
-importance_plot(shape_stat, 'NS', 'NS', 'graphs_importance_loo_year', 
-                    bins = [0, 0.2, 0.4, 0.6, 0.8, 1])
+if loo_file == 'loo_year1.csv':
+    
+    importance_plot(shape_stat, 'R2', 'R2', 'loo_graphs/year_loo/graphs_importance_loo_year', 
+                        bins = [0, 0.2, 0.4, 0.6, 0.8, 1])
+    
+    importance_plot(shape_stat, 'NS', 'NS', 'loo_graphs/year_loo/graphs_importance_loo_year', 
+                        bins = [0, 0.2, 0.4, 0.6, 0.8, 1])
+    
+    importance_plot(shape_stat, 'delta, %', 'delta_proc', 'loo_graphs/year_loo/graphs_importance_loo_year', 
+                        bins = [-0.2, 0, 0.2, 0.4, 0.6])
+    
+    importance_plot(shape_stat, 'RMSE', 'RMSE', 'loo_graphs/year_loo/graphs_importance_loo_year', 
+                        bins = [-0.2, 0, 0.2, 0.4, 0.6])
+    
+    importance_plot(shape_stat, 'mae', 'mae', 'loo_graphs/year_loo/graphs_importance_loo_year', 
+                        bins = [-0.2, 0, 0.2, 0.4, 0.6])
+    
+    graphs_per_watershed(data, stat, ['wpol', 'wpol_pred'], 'loo_graphs/year_loo/graphs_predict_year_loo/')
+    graphs_per_watershed(data, stat, ['RMSE'], 'loo_graphs/year_loo/graphs_predict_year_loo_rmse/')
+    graphs_per_watershed(data, stat, ['abs_delta_proc'], 'loo_graphs/year_loo/graphs_predict_year_loo_abs_delta/')
+    
+    stat.to_excel('stat_loo_year.xlsx')  
 
-importance_plot(shape_stat, 'delta, %', 'delta_proc', 'graphs_importance_loo_year', 
-                    bins = [-0.2, 0, 0.2, 0.4, 0.6])
 
-importance_plot(shape_stat, 'RMSE', 'RMSE', 'graphs_importance_loo_year', 
-                    bins = [-0.2, 0, 0.2, 0.4, 0.6])
-
-importance_plot(shape_stat, 'mae', 'mae', 'graphs_importance_loo_year', 
-                    bins = [-0.2, 0, 0.2, 0.4, 0.6])
-
-'''
-sample = data[data['station'] == 78144]
-sample = sample.sort_values(['year'])
-sample.index = sample['year']
-sample[['wpol', 'wpol_pred']].plot()
-'''
